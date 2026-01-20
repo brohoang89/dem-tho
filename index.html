@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đếm thở</title>
+</head>
+<body>
+
+<p>Nhập số giây hít vào</p>
+<input id="n" type="number" value="5" min="1">
+<br><br>
+<button onclick="start()">Bắt đầu</button>
+<button onclick="stop()">Dừng</button>
+
+<script>
+let running = false;
+let inhale = 0;
+let exhale = 0;
+let count = 0;
+let phase = 1;
+let timer = null;
+let unlocked = false;
+
+function speak(num) {
+  const u = new SpeechSynthesisUtterance(num.toString());
+  u.lang = "vi-VN";
+  u.rate = 0.9;
+  speechSynthesis.speak(u);
+}
+
+function tick() {
+  if (!running) return;
+
+  count++;
+  speak(count);
+
+  const limit = phase === 1 ? inhale : exhale;
+
+  if (count >= limit) {
+    count = 0;
+    phase = phase === 1 ? 2 : 1;
+  }
+
+  timer = setTimeout(tick, 1000);
+}
+
+function start() {
+  if (running) return;
+
+  inhale = parseInt(document.getElementById("n").value);
+  exhale = inhale * 2;
+
+  speechSynthesis.cancel();
+
+  if (!unlocked) {
+    const u = new SpeechSynthesisUtterance("1");
+    u.lang = "vi-VN";
+    u.volume = 0;
+    speechSynthesis.speak(u);
+    unlocked = true;
+  }
+
+  running = true;
+  phase = 1;
+  count = 0;
+
+  speak(1);
+  count = 1;
+
+  timer = setTimeout(tick, 1000);
+}
+
+function stop() {
+  running = false;
+  clearTimeout(timer);
+  speechSynthesis.cancel();
+}
+</script>
+
+</body>
+</html>
