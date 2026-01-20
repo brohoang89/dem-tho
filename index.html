@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Đếm thở Khí Công (Tốc độ thích ứng)</title>
+<title>Đếm thở Khí Công (Đọc tắt)</title>
 <style>
   body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9;}
   input { padding: 8px; width: 60px; text-align: center; font-size: 18px; border-radius: 5px; border: 1px solid #ccc;}
@@ -18,10 +18,10 @@
 <body>
 
 <h2>Đếm thở Khí Công</h2>
-<p class="tutorial">Máy sẽ tự động đọc nhanh hơn với các số dài (ví dụ: mười lăm)</p>
+<p class="tutorial">Chế độ đọc tắt: "Hai mốt", "Hai hai", "Hai ba"...</p>
 
 <p>Hít vào (giây)</p>
-<input id="n" type="number" value="5" min="1">
+<input id="n" type="number" value="15" min="1">
 
 <p>Thời gian tập (phút)</p>
 <input id="minutes" type="number" value="10" min="1">
@@ -36,36 +36,47 @@
 <script>
 let timer = null;       
 let currentCount = 0;   
-let currentPhase = 1;   // 1: Hít, 2: Thở
+let currentPhase = 1;   
 let phaseLimit = 0;     
 let endTime = 0;
 let unlocked = false;
 
-// --- HÀM QUAN TRỌNG: Tự động chỉnh tốc độ ---
+// --- HÀM MỚI: Chuyển số thành văn nói tắt ---
+function docSoNganGon(n) {
+    if (n < 20) return n.toString(); // Dưới 20 để máy tự đọc (Mười lăm, Mười sáu...)
+    
+    const chuc = Math.floor(n / 10);
+    const donvi = n % 10;
+    
+    let tuChuc = chuc.toString(); // Mặc định là số
+    // Chuyển số hàng chục thành chữ (nếu cần thiết, nhưng google voice đọc số đơn lẻ tốt)
+    // Google voice đọc "2" là "hai", "3" là "ba" -> OK
+    
+    let tuDonVi = "";
+    
+    if (donvi === 0) return chuc + " mươi"; // 20 -> Hai mươi (Vẫn nhanh)
+    
+    switch (donvi) {
+        case 1: tuDonVi = "mốt"; break;
+        case 4: tuDonVi = "tư"; break;
+        case 5: tuDonVi = "lăm"; break;
+        default: tuDonVi = donvi.toString();
+    }
+    
+    return chuc + " " + tuDonVi; 
+    // Ví dụ: "2 1" -> máy đọc "Hai một" (không hay bằng Hai mốt)
+    // Nên ta return "2 mốt" -> máy đọc "Hai mốt"
+}
+
 function speak(text) {
-  speechSynthesis.cancel(); // Ngắt lời cũ ngay lập tức
+  speechSynthesis.cancel(); 
 
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "vi-VN";
   
-  // LOGIC TỰ ĐỘNG TĂNG TỐC
-  // Nếu text là số (ví dụ "1", "15")
-  if (!isNaN(text)) {
-      const num = parseInt(text);
-      if (num < 10) {
-          u.rate = 1.2; // Số nhỏ (1 chữ): Đọc hơi nhanh chút cho gọn (1.2x)
-      } else {
-          u.rate = 1.6; // Số lớn (2 chữ trở lên "Mười lăm"): Đọc rất nhanh (1.6x)
-      }
-  } else {
-      // Nếu là chữ (Hít vào / Thở ra)
-      // "Hít vào" khá ngắn, "Thở ra" cũng ngắn, nhưng để an toàn ta để 1.4
-      u.rate = 1.4; 
-  }
-
-  // Fallback: Trên một số trình duyệt mobile, rate quá cao có thể bị lỗi, 
-  // nên ta chặn trần ở mức 2.0 (nhanh gấp đôi là tối đa nghe rõ)
-  if (u.rate > 2.0) u.rate = 2.0;
+  // Tinh chỉnh tốc độ
+  // Vì đã đọc tắt (ngắn hơn) nên để tốc độ 1.3 là vừa đẹp, không cần quá nhanh
+  u.rate = 1.3; 
 
   speechSynthesis.speak(u);
 }
@@ -85,14 +96,16 @@ function tick() {
 
   if (currentCount === 0) {
     if (currentPhase === 1) {
-       speak("Hít"); // Đổi text ngắn lại cho gọn
+       speak("Hít"); 
        updateDisplay("Đang Hít vào...", "Hít");
     } else {
-       speak("Thở"); // Đổi text ngắn lại cho gọn
+       speak("Thở"); 
        updateDisplay("Đang Thở ra...", "Thở");
     }
   } else {
-    speak(currentCount.toString());
+    // SỬ DỤNG HÀM ĐỌC TẮT
+    let textToRead = docSoNganGon(currentCount);
+    speak(textToRead);
     updateDisplay(currentPhase === 1 ? "Hít vào" : "Thở ra", currentCount);
   }
 
