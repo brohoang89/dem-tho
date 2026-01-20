@@ -14,45 +14,50 @@
 <button onclick="stop()">Dừng</button>
 
 <script>
-let running = false;
 let inhale = 0;
 let exhale = 0;
+let phase = 1; // 1 = hít, 2 = thở
 let count = 0;
-let phase = 1;
-let timer = null;
+let running = false;
 let unlocked = false;
 
-function speakText(text) {
+function speak(text, callback) {
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "vi-VN";
   u.rate = 0.9;
+  u.onend = () => {
+    if (callback) callback();
+  };
   speechSynthesis.speak(u);
 }
 
-function speakNumber(num) {
-  const u = new SpeechSynthesisUtterance(num.toString());
-  u.lang = "vi-VN";
-  u.rate = 0.9;
-  speechSynthesis.speak(u);
-}
-
-function tick() {
+function startPhase() {
   if (!running) return;
 
-  count++;
-  speakNumber(count);
+  const label = phase === 1 ? "Hít vào" : "Thở ra";
+  speak(label, () => {
+    setTimeout(() => {
+      count = 1;
+      speak(count.toString(), nextCount);
+    }, 500); // nghỉ 0.5s sau chữ
+  });
+}
+
+function nextCount() {
+  if (!running) return;
 
   const limit = phase === 1 ? inhale : exhale;
 
   if (count >= limit) {
-    count = 0;
     phase = phase === 1 ? 2 : 1;
-
-    // Đọc chữ khi chuyển pha
-    speakText(phase === 1 ? "Hít vào" : "Thở ra");
+    setTimeout(startPhase, 1000);
+    return;
   }
 
-  timer = setTimeout(tick, 1000);
+  setTimeout(() => {
+    count++;
+    speak(count.toString(), nextCount);
+  }, 1000);
 }
 
 function start() {
@@ -63,10 +68,9 @@ function start() {
 
   speechSynthesis.cancel();
 
-  // Mở khoá âm thanh cho Safari iOS
+  // mở khoá audio iOS
   if (!unlocked) {
     const u = new SpeechSynthesisUtterance("1");
-    u.lang = "vi-VN";
     u.volume = 0;
     speechSynthesis.speak(u);
     unlocked = true;
@@ -74,19 +78,11 @@ function start() {
 
   running = true;
   phase = 1;
-  count = 0;
-
-  // Đọc chữ & số đầu tiên NGAY khi bấm
-  speakText("Hít vào");
-  speakNumber(1);
-  count = 1;
-
-  timer = setTimeout(tick, 1000);
+  startPhase();
 }
 
 function stop() {
   running = false;
-  clearTimeout(timer);
   speechSynthesis.cancel();
 }
 </script>
