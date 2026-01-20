@@ -7,11 +7,16 @@
 </head>
 <body>
 
-<p>Nhập số giây hít vào</p>
+<p>Hít vào (giây)</p>
 <input id="n" type="number" value="5" min="1">
+
+<p>Thời gian tập (phút)</p>
+<input id="minutes" type="number" value="10" min="1">
+
 <br><br>
 <button onclick="start()">Bắt đầu</button>
 <button onclick="stop()">Dừng</button>
+
 
 <script>
 let inhale = 0;
@@ -20,6 +25,7 @@ let phase = 1; // 1 = hít, 2 = thở
 let count = 0;
 let running = false;
 let unlocked = false;
+let endTime = 0;
 
 function speak(text, callback) {
   const u = new SpeechSynthesisUtterance(text);
@@ -31,20 +37,29 @@ function speak(text, callback) {
   speechSynthesis.speak(u);
 }
 
+function timeUp() {
+  if (Date.now() >= endTime) {
+    stop();
+    return true;
+  }
+  return false;
+}
+
 function startPhase() {
-  if (!running) return;
+  if (!running || timeUp()) return;
 
   const label = phase === 1 ? "Hít vào" : "Thở ra";
   speak(label, () => {
     setTimeout(() => {
+      if (timeUp()) return;
       count = 1;
       speak(count.toString(), nextCount);
-    }, 500); // nghỉ 0.5s sau chữ
+    }, 500);
   });
 }
 
 function nextCount() {
-  if (!running) return;
+  if (!running || timeUp()) return;
 
   const limit = phase === 1 ? inhale : exhale;
 
@@ -55,6 +70,7 @@ function nextCount() {
   }
 
   setTimeout(() => {
+    if (timeUp()) return;
     count++;
     speak(count.toString(), nextCount);
   }, 1000);
@@ -66,9 +82,12 @@ function start() {
   inhale = parseInt(document.getElementById("n").value);
   exhale = inhale * 2;
 
+  const minutes = parseInt(document.getElementById("minutes").value);
+  endTime = Date.now() + minutes * 60 * 1000;
+
   speechSynthesis.cancel();
 
-  // mở khoá audio iOS
+  // Mở khoá audio cho Safari iOS
   if (!unlocked) {
     const u = new SpeechSynthesisUtterance("1");
     u.volume = 0;
@@ -86,6 +105,7 @@ function stop() {
   speechSynthesis.cancel();
 }
 </script>
+
 
 
 </body>
