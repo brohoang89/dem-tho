@@ -3,111 +3,142 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Đếm thở</title>
+<title>Đếm thở Khí Công (Chính xác)</title>
+<style>
+  body { font-family: sans-serif; text-align: center; padding: 20px; }
+  input { padding: 5px; width: 60px; text-align: center; }
+  button { padding: 10px 20px; margin: 10px; cursor: pointer; font-size: 16px;}
+  #status { font-size: 24px; margin-top: 20px; font-weight: bold; color: #333; }
+  #counter { font-size: 60px; color: #007bff; margin: 20px 0; }
+</style>
 </head>
 <body>
 
-<p>Hít vào bằng mũi, thở ra bằng miệng</p>
+<h2>Đếm thở Khí Công</h2>
 <p>Hít vào (giây)</p>
 <input id="n" type="number" value="5" min="1">
 
 <p>Thời gian tập (phút)</p>
 <input id="minutes" type="number" value="10" min="1">
 
-<br><br>
+<div id="status">Sẵn sàng</div>
+<div id="counter">--</div>
+
 <button onclick="start()">Bắt đầu</button>
 <button onclick="stop()">Dừng</button>
 
-
 <script>
-let inhale = 0;
-let exhale = 0;
-let phase = 1; // 1 = hít, 2 = thở
-let count = 0;
-let running = false;
-let unlocked = false;
+let timer = null;       // Biến giữ bộ đếm thời gian
+let currentCount = 0;   // Số giây hiện tại trong pha
+let currentPhase = 1;   // 1: Hít, 2: Thở
+let phaseLimit = 0;     // Giới hạn đếm của pha hiện tại
 let endTime = 0;
+let unlocked = false;
 
-function speak(text, callback) {
+// Cấu hình giọng nói
+function speak(text) {
+  // QUAN TRỌNG: Hủy ngay câu đang đọc dở để đọc câu mới đúng nhịp
+  speechSynthesis.cancel(); 
+
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "vi-VN";
-  u.rate = 0.9;
-  u.onend = () => {
-    if (callback) callback();
-  };
+  u.rate = 1.0; // Tốc độ đọc bình thường
   speechSynthesis.speak(u);
 }
 
-function timeUp() {
+function updateDisplay(text, countDisplay) {
+  document.getElementById("status").innerText = text;
+  document.getElementById("counter").innerText = countDisplay;
+}
+
+function tick() {
+  // 1. Kiểm tra hết giờ tổng
   if (Date.now() >= endTime) {
     stop();
-    return true;
-  }
-  return false;
-}
-
-function startPhase() {
-  if (!running || timeUp()) return;
-
-  const label = phase === 1 ? "Hít vào" : "Thở ra";
-  speak(label, () => {
-    setTimeout(() => {
-      if (timeUp()) return;
-      count = 1;
-      speak(count.toString(), nextCount);
-    }, 500);
-  });
-}
-
-function nextCount() {
-  if (!running || timeUp()) return;
-
-  const limit = phase === 1 ? inhale : exhale;
-
-  if (count >= limit) {
-    phase = phase === 1 ? 2 : 1;
-    setTimeout(startPhase, 1000);
+    speak("Hoàn thành");
+    updateDisplay("Hoàn thành", "OK");
     return;
   }
 
-  setTimeout(() => {
-    if (timeUp()) return;
-    count++;
-    speak(count.toString(), nextCount);
-  }, 1000);
+  // 2. Xử lý Logic đếm
+  // Nếu currentCount = 0 thì đọc lệnh (Hít/Thở), chưa đếm số
+  if (currentCount === 0) {
+    if (currentPhase === 1) {
+       speak("Hít vào");
+       updateDisplay("Đang Hít vào...", "Hít");
+    } else {
+       speak("Thở ra");
+       updateDisplay("Đang Thở ra...", "Thở");
+    }
+  } else {
+    // Đọc số
+    speak(currentCount.toString());
+    updateDisplay(currentPhase === 1 ? "Hít vào" : "Thở ra", currentCount);
+  }
+
+  // 3. Chuẩn bị cho nhịp tiếp theo (Tăng số)
+  currentCount++;
+
+  // 4. Kiểm tra xem đã đếm đủ số giây chưa
+  // Ví dụ: Hít 5s. 
+  // Nhịp 0: Nói "Hít" -> count tăng lên 1
+  // Nhịp 1: Nói "1" -> count tăng lên 2
+  // ...
+  // Nhịp 5: Nói "5" -> count tăng lên 6
+  // Lúc này count (6) > limit (5) -> Chuyển pha
+  if (currentCount > phaseLimit) {
+    switchPhase();
+  }
+}
+
+function switchPhase() {
+  // Đảo pha
+  currentPhase = (currentPhase === 1) ? 2 : 1;
+  
+  // Reset số đếm về 0 để nhịp sau đọc lệnh "Hít/Thở"
+  currentCount = 0; 
+
+  // Cập nhật giới hạn mới
+  const baseN = parseInt(document.getElementById("n").value);
+  if (currentPhase === 1) {
+    phaseLimit = baseN; // Hít vào = N
+  } else {
+    phaseLimit = baseN * 2; // Thở ra = 2N
+  }
 }
 
 function start() {
-  if (running) return;
-
-  inhale = parseInt(document.getElementById("n").value);
-  exhale = inhale * 2;
+  if (timer) return; // Đang chạy thì không bấm được nữa
 
   const minutes = parseInt(document.getElementById("minutes").value);
   endTime = Date.now() + minutes * 60 * 1000;
+  
+  // Khởi tạo trạng thái ban đầu
+  currentPhase = 1; 
+  currentCount = 0;
+  phaseLimit = parseInt(document.getElementById("n").value);
 
-  speechSynthesis.cancel();
-
-  // Mở khoá audio cho Safari iOS
+  // Mở khoá audio cho iOS (nếu cần)
   if (!unlocked) {
-    const u = new SpeechSynthesisUtterance("1");
-    u.volume = 0;
+    const u = new SpeechSynthesisUtterance("");
     speechSynthesis.speak(u);
     unlocked = true;
   }
 
-  running = true;
-  phase = 1;
-  startPhase();
+  // Chạy ngay lập tức nhịp đầu tiên (không đợi 1s)
+  tick();
+  
+  // Cài đặt bộ đếm lặp lại đúng mỗi 1000ms (1 giây)
+  timer = setInterval(tick, 1000);
 }
 
 function stop() {
-  running = false;
-  speechSynthesis.cancel();
+  clearInterval(timer);
+  timer = null;
+  speechSynthesis.cancel(); // Im lặng ngay lập tức
+  updateDisplay("Đã dừng", "--");
 }
 </script>
-
-
 
 </body>
 </html>
