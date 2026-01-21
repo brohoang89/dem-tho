@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Đếm thở Khí Công (Đọc tắt)</title>
+<title>Đếm thở Thải độc (Liền mạch)</title>
 <style>
   body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9;}
   input { padding: 8px; width: 60px; text-align: center; font-size: 18px; border-radius: 5px; border: 1px solid #ccc;}
@@ -13,16 +13,19 @@
   #status { font-size: 30px; margin-top: 30px; font-weight: bold; color: #333; height: 40px;}
   #counter { font-size: 80px; color: #007bff; margin: 10px 0; font-weight: bold;}
   .tutorial { font-size: 14px; color: #666; margin-bottom: 20px;}
+  .ratio-info { background: #e9ecef; padding: 10px; display: inline-block; border-radius: 8px; margin-bottom: 20px;}
 </style>
 </head>
 <body>
 
 <h2>Bài thở thải độc tố</h2>
-<h2>Hít mũi 1 - Thở miệng 2</h2>
-<p class="tutorial">Chế độ đọc tắt: "Hai mốt", "Hai hai", "Hai ba"...</p>
+<div class="ratio-info">
+    Tỷ lệ: Hít mũi (1) - Thở miệng (2)
+</div>
+<p class="tutorial">Quy tắc: "Hít... Hai... Ba..."</p>
 
-<p>Hít vào (giây)</p>
-<input id="n" type="number" value="15" min="1">
+<p>Thời gian Hít vào (giây)</p>
+<input id="n" type="number" value="5" min="1">
 
 <p>Thời gian tập (phút)</p>
 <input id="minutes" type="number" value="10" min="1">
@@ -36,26 +39,27 @@
 
 <script>
 let timer = null;       
-let currentCount = 0;   
-let currentPhase = 1;   
+let currentCount = 1;   // Bắt đầu từ 1
+let phaseIndex = 0;     // 0: Hít, 1: Thở
 let phaseLimit = 0;     
 let endTime = 0;
 let unlocked = false;
 
-// --- HÀM MỚI: Chuyển số thành văn nói tắt ---
+// Cấu hình các pha cho bài Thải độc (1-2)
+const phases = [
+    { name: "Hít", label: "Hít vào", ratio: 1 },
+    { name: "Thở", label: "Thở ra", ratio: 2 }
+];
+
+// --- HÀM ĐỌC SỐ NGẮN GỌN ---
 function docSoNganGon(n) {
-    if (n < 20) return n.toString(); // Dưới 20 để máy tự đọc (Mười lăm, Mười sáu...)
+    if (n < 20) return n.toString(); 
     
     const chuc = Math.floor(n / 10);
     const donvi = n % 10;
-    
-    let tuChuc = chuc.toString(); // Mặc định là số
-    // Chuyển số hàng chục thành chữ (nếu cần thiết, nhưng google voice đọc số đơn lẻ tốt)
-    // Google voice đọc "2" là "hai", "3" là "ba" -> OK
-    
     let tuDonVi = "";
     
-    if (donvi === 0) return chuc + " mươi"; // 20 -> Hai mươi (Vẫn nhanh)
+    if (donvi === 0) return chuc + " mươi"; 
     
     switch (donvi) {
         case 1: tuDonVi = "mốt"; break;
@@ -65,20 +69,13 @@ function docSoNganGon(n) {
     }
     
     return chuc + " " + tuDonVi; 
-    // Ví dụ: "2 1" -> máy đọc "Hai một" (không hay bằng Hai mốt)
-    // Nên ta return "2 mốt" -> máy đọc "Hai mốt"
 }
 
 function speak(text) {
   speechSynthesis.cancel(); 
-
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "vi-VN";
-  
-  // Tinh chỉnh tốc độ
-  // Vì đã đọc tắt (ngắn hơn) nên để tốc độ 1.3 là vừa đẹp, không cần quá nhanh
   u.rate = 1.3; 
-
   speechSynthesis.speak(u);
 }
 
@@ -95,38 +92,37 @@ function tick() {
     return;
   }
 
-  if (currentCount === 0) {
-    if (currentPhase === 1) {
-       speak("Hít"); 
-       updateDisplay("Đang Hít vào...", "Hít");
-    } else {
-       speak("Thở"); 
-       updateDisplay("Đang Thở ra...", "Thở");
-    }
+  const currentPhaseConfig = phases[phaseIndex];
+
+  // --- LOGIC LIỀN MẠCH ---
+  if (currentCount === 1) {
+    // Giây thứ 1: Đọc tên lệnh (Hít/Thở) thay vì số 1
+    speak(currentPhaseConfig.name); 
+    updateDisplay(currentPhaseConfig.label, currentPhaseConfig.name);
   } else {
-    // SỬ DỤNG HÀM ĐỌC TẮT
+    // Giây thứ 2 trở đi: Đọc số
     let textToRead = docSoNganGon(currentCount);
     speak(textToRead);
-    updateDisplay(currentPhase === 1 ? "Hít vào" : "Thở ra", currentCount);
+    updateDisplay(currentPhaseConfig.label, currentCount);
   }
 
   currentCount++;
 
+  // Kiểm tra chuyển pha
   if (currentCount > phaseLimit) {
     switchPhase();
   }
 }
 
 function switchPhase() {
-  currentPhase = (currentPhase === 1) ? 2 : 1;
-  currentCount = 0; 
+  // Đảo pha: 0 -> 1 -> 0 -> 1...
+  phaseIndex = (phaseIndex + 1) % 2;
   
-  const baseN = parseInt(document.getElementById("n").value);
-  if (currentPhase === 1) {
-    phaseLimit = baseN; 
-  } else {
-    phaseLimit = baseN * 2; 
-  }
+  // Reset về 1 để nhịp sau đọc lệnh luôn
+  currentCount = 1; 
+  
+  const baseTime = parseInt(document.getElementById("n").value);
+  phaseLimit = baseTime * phases[phaseIndex].ratio;
 }
 
 function start() {
@@ -135,9 +131,11 @@ function start() {
   const minutes = parseInt(document.getElementById("minutes").value);
   endTime = Date.now() + minutes * 60 * 1000;
   
-  currentPhase = 1; 
-  currentCount = 0;
-  phaseLimit = parseInt(document.getElementById("n").value);
+  phaseIndex = 0; 
+  currentCount = 1; // Bắt đầu từ 1
+  
+  const baseTime = parseInt(document.getElementById("n").value);
+  phaseLimit = baseTime * phases[0].ratio;
 
   if (!unlocked) {
     const u = new SpeechSynthesisUtterance("");
